@@ -1,0 +1,368 @@
+---
+title: "Midterm Exam"
+author: "Alison Pedraza"
+date: "11/2/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Instruction
+
+This is your midterm exam that you are expected to work on it alone.  You may NOT  discuss any of the content of your exam with anyone except your instructor. This includes text, chat, email and other online forums.  We expect you to respect and follow the [GRS Academic and Professional Conduct Code](http://www.bu.edu/cas/files/2017/02/GRS-Academic-Conduct-Code-Final.pdf). 
+
+Although you may NOT ask anyone directly, you are allowed to use external resources such as R codes on the Internet.  If you do use someone's code, please make sure you clearly cite the origin of the code.
+
+When you finish, please compile and submit the PDF file and the link to the GitHub repository that contains the entire analysis.
+
+
+## Introduction
+
+In this exam, you will act as both the client and the consultant for the data that you collected in the data collection exercise (20pts).  Please note that you are not allowed to change the data.  The goal of this exam is to demonstrate your ability to perform the statistical analysis that you learned in this class so far.  It is important to note that significance of the analysis is not the main goal of this exam but the focus is on the appropriateness of your approaches.
+
+### Data Description (10pts)
+
+Please explain what your data is about and what the comparison of interest is.  In the process, please make sure to demonstrate that you can load your data properly into R.
+
+
+#Data Description
+#My data for the data collection exercise consists of the number of xsmall, small, medium, large, and xlarge sizes found on three different sales racks in the women's department at my local Target stores. The data was collected by counting consecutively each size and then moving on to the next rack once I had counted all the sizes in the described range for that rack. 
+
+##The clearance racks at Target hold a variety of styles on each rack. There is no particular assignment to the rack, such as a clearance rack for dresses and another for tops. Therefore, what is on the rack is a random assortment of styles all of which were once on the regular priced racks. My interest was two-fold: First, to see how many (the quanitity) of each size is found on a clearance rack at Target and if there is consistency in the quantity found for each size between clearance racks. Since I needed extra data, my data comes from two different Target stores. Doing this did afford me the opportunity to also compare data between stores and not just racks within the same store. 
+
+
+```{r }
+
+library(tidyverse)
+library(ggplot2)
+library(rstanarm)
+library(readxl)
+library(glmx)
+library(knitr)
+library(bayesplot)
+library(arm)
+library(reshape2)
+library(pwr)
+target_orig <- read.csv("Target_data.csv", fileEncoding="UTF-8-BOM")
+
+target_orig$RackNum <- as.character(target_orig$RackNum)
+
+
+target_orig
+
+
+```
+
+## Data in transformed format.
+### I changed the organization of the data from the original format in Excel. I did not use pivot_long since it was not working for me. I wanted to change the organization of the data in order to do many different graphs in my EDA:
+```{r}
+target_data_3 <- read.csv("Target_data_trans.csv", fileEncoding = "UTF-8-BOM")
+
+target_data_3$RackNum <- as.character(target_data_3$RackNum)
+is.character(target_data_3$RackNum)
+target_data_3
+
+
+```
+
+```{r}
+
+target_data_2 <- read.csv("Target_data_trans2.csv",fileEncoding = "UTF-8-BOM")
+
+
+target_data_2$RackNum <- as.character(target_data_2$RackNum)
+
+target_data_2
+#is.character(target_data_t2$RackNum)
+
+
+
+```
+### EDA (10pts)
+
+Please create one (maybe two) figure(s) that highlights the contrast of interest.  Make sure you think ahead and match your figure with the analysis.  For example, if your model requires you to take a log, make sure you take log in the figure as well.
+
+###Below is my EDA analysis. I did a line chart and a bar chart:
+
+###What is significant from both the line chart and bar chart is the relationship between the sizes. There does seem to be a trend between these sizes where the number of size small that's found on the racks is higher than any other size.
+
+## Dot-Plot of the Variables (XS, S, M, L, XL) by Quantity and Location
+
+
+```{r }
+
+dot_plot <- ggplot(melt(target_orig, id.vars = c("Location", "RackNum" ))) + geom_line() +
+                aes(x=variable, y=value, group=RackNum, color = RackNum) + facet_wrap(~ Location)
+dot_plot
+
+
+
+```
+
+### Although it looks like from the bar chart that there is a difference in sizes between locations (in other words, that the location dictates the proportion of sizes), I do not believe the location actually does have an affect. Rack1 and Rack2 from the Glendale Galleria had overall a smaller quantity of samples. The sum of the racks from the Glendale Galleria (rack 1 and rack 2) is close to the total number of samples collected from rack 3 at Eagle Rock Plaza.
+
+
+
+## Bar-Plot of Count of each size for each Rack
+
+```{r}
+bar_plot <- ggplot(data = target_data_2) +
+                geom_bar(mapping = aes(x = Location, fill = Size ), position = "dodge")
+bar_plot
+
+
+```
+
+###To get the sum of Rack1 and Rack2:
+
+```{r}
+target_data_4 <- read.csv("Target_data_2.csv", fileEncoding = "UTF-8-BOM")
+target_data_4
+
+rack1 <- sum(target_data_4$Quantity_1)
+rack2 <- sum(target_data_4$Quantity_2)
+
+```
+###Total rack1 plus rack2
+```{r}
+total_1_2 <- sum(rack1 + rack2)
+total_1_2
+```
+
+###Total rack 3
+```{r}
+total_3 <- sum(target_data_4$Quantity_3)
+total_3
+```
+
+
+
+
+
+### Power Analysis (10pts)
+
+Please perform power analysis on the project.  Use 80% power, the sample size you used and infer the level of effect size you will be able to detect.  Discuss whether your sample size was enough for the problem at hand.  Please note that method of power analysis should match the analysis.  Also, please clearly state why you should NOT use the effect size from the fitted model.
+
+###Below is the power test. I used the pwr.t.test and the pwr.t2n.test since I am really looking at the proportions between a number of sizes. In other words, how many of each size relative to the other sizes. I got an average size of 16 samples for each group (xs, x, m, l, xl) and this is what I used for n in the first power test. For the second power test, I used n1 = 17 and n2 = 22. These are the sizes for xsmall and small.
+
+###You should not use the effect size from the fitted model because doing so will not give you a clear understanding of whether or not the extreme values you get are actually statistically significant or whether you were just "lucky". And, for my data, there are not enough observations per group (roughly, the average samples per size is 16 samples) to know whether or not it is a true representation of the sizing population as a whole. 
+
+###The result I get for the effect size is 0.92. This is too large considering that an effect size of 0.2 is the default for small samples. (Effect size information is from the following website: https://www.statmethods.net/stats/power.html) 
+
+```{r }
+
+
+#pwr.t.test(n=16,d= NULL,sig.level=0.05,power = 0.8,type = "two.sample")
+pwr.t2n.test(n = 17, n2 = 22, d=NULL, sig.level = 0.05, power = 0.8)
+
+```
+
+
+
+### Modeling (10pts)
+
+Please pick a regression model that best fits your data and fit your model.  Please make sure you describe why you decide to choose the model. Also, if you are using GLM, make sure you explain your choice of link function as well.
+
+## Model Using will be an Ordered Logit Model for an Ordinal Categorical Outcome
+
+###I decided to use an ordered logit model because my data is in categories and is ordered. Sizing is categorical as well as ordered. Target, like many clothing retailers use a sizing consisting of small, medium, and large, with x-small and x-large, as well as other sizes,for the extreme ends of the size range.  Sizing is also ordered. For example, the size x-small is dimensionally smaller than small, and small is dimensionally smaller than medium and so on up and down the sizing range. Because of this relationship in measurement between sizes, sizing is ordered. 
+
+###With sizing, there is also a latent variable, This variable is the numeric measurement of the shoulders, chest, waist, and hips. This is also a reason why I decided to use the ordered logit model. The individual sizes are created by numeric measurements. Each individual size describes a measurement range for shoulders, chest, and waist, for example. For many retailers, a size small will fit an across-shoulder measurement from 13" to 15", and a medium fits an across-shoulder measurement of 15” to 17”. Therefore, if the target customer wears a medium, it is understood that her across-shoulder measurement will be somewhere between 13” and 15”. 
+
+###Using data target_data_3
+```{r}
+target_data_3
+
+```
+
+
+```{r}
+
+target_data_3$factor_Size <- factor(target_data_3$Size, levels = c("XSmall", "Small", "Medium", "Large", "ExtraL"), labels = c("xsmall", "small", "medium", "large", "xlarge"), ordered = TRUE)
+#target_data_3$factor_Quantity <- factor(target_data_3$Quantity, levels = c(""))
+
+fit_1 <- stan_polr(factor_Size ~ frequency + RackNum, data = target_data_3, prior = R2(0.3, "mean"), refresh = 0)
+
+print(fit_1, digits = 2)
+coef(fit_1)
+
+
+```
+
+###Would like to use the bracl() which is used for adjacent category logit models, but not having lucj with the brglm2 package
+```{r}
+library("brglm2")
+
+
+
+```
+
+### Validation (10pts)
+
+Please perform a necessary validation and argue why your choice of the model is appropriate.  
+###Binned Residuals to Verify:
+##To validate the choice of model I decided to do a binned residual plots
+###The binned residual plot looks good:
+```{r }
+binnedplot(fitted(fit_1), resid(fit_1))
+
+
+```
+
+
+###Predict to Verify:
+###I also used posterior_predict() and its distribution to compare our predictions to what is really happening in the data. Most of the values are on the diagonals with a few off. The error rate is 26% which tells me that the error rate is low. 
+
+
+```{r}
+
+pred_verify <- posterior_predict(fit_1, iter = 1000)
+class = rep(NA, length = ncol(pred_verify))
+  for(i in 1:length(class)){
+    class[i] = pred_verify[(which.max(tabulate(match(pred_verify[,i], unique(pred_verify[,i]))))), i]
+  }
+
+table(class, target_data_3$Size)
+sum(diag(table(class, target_data_3$Size)))/(sum(table(class, target_data_3$Size)))
+
+
+```
+
+###I also did a pp_check to verify. There are peaks at 1, 2, 3, 4, and 5 which corresponds to the 5 size ranges. But, the peaks are not all large or accentuated. The peaks at 1 and 2 are slighty muted while the peaks at 3, 4, and 5 are more pronounced.
+
+```{r}
+
+pp_check(fit_1)
+
+
+```
+
+
+
+
+### Inference (10pts)
+
+Based on the result so far please perform statistical inference to compare the comparison of interest.
+
+###For Inference, I decided to find the 95% confidence interval for the proportion of each size of my dataset. I thought this would be the most straight forward way to see if the values I got for each size were reasonable especially since I had a limited amount of data.
+
+###To do that, I got the total for each size and divided it by the grand total. I did that below: (The proportions for xsmall, xlarge, and small are seen as output.)
+```{r}
+
+target_orig   ##My data set
+
+xs_total <- sum(target_orig$XS)
+s_total <- sum(target_orig$S)
+m_total<- sum(target_orig$M)
+l_total <- sum(target_orig$L)
+xl_total <- sum(target_orig$ExtraL)
+grand_total <- sum(xs_total + s_total +m_total + l_total + xl_total)
+
+#xsmall sample proportion:
+xs_prop = (xs_total)/(grand_total)
+s_prop = (s_total)/(grand_total)
+m_prop = (m_total)/(grand_total)
+l_prop = (l_total)/(grand_total)
+xl_prop = (xl_total)/(grand_total)
+
+xs_prop
+xl_prop
+s_prop
+```
+
+###Below are the confidence intervals for xsmall, small, medium, large, and xlarge respectively. They are all around or below
+
+```{r}
+#what is the 95% confidence interval for the xs proportion? First I will find the standard error:
+
+#std_error = sqrt(xs_prop
+
+std_error_xs = sqrt(   (xs_prop*(1-xs_prop)) / grand_total)
+std_error_s = sqrt(   (s_prop*(1-s_prop)) / grand_total)
+std_error_m = sqrt(   (m_prop*(1-m_prop)) / grand_total)
+std_error_l = sqrt(   (l_prop*(1-l_prop)) / grand_total)
+std_error_xl = sqrt(   (xl_prop*(1-xl_prop)) / grand_total)
+
+
+###95% confidence interval for XS:
+z = (1.96)
+c.i_xs = xs_prop + z*std_error_xs
+c.i_xs2 = xs_prop - z*std_error_xs
+c.i_s = s_prop + z*std_error_s
+c.i_s2 = s_prop - z*std_error_s
+c.i_m = m_prop + z*std_error_m
+c.i_m2 = m_prop - z*std_error_m
+c.i_l = l_prop + z*std_error_l
+c.i_l2 = l_prop - z*std_error_l
+c.i_xl = xl_prop + z*std_error_xl
+c.i_xl2 = xl_prop - z*std_error_xl
+
+#xs <- "We are 95% confident that we will find the quantity of XS sizes on the clearance rack to be between" + c.i_xs + "and" + c.i_xs2.
+#xs
+
+```
+
+###For size xsmall, the proportion from the data is about 24%. The 95% confidence interval tells us that we can be 95% sure that the quantity of xsmalls found on the clearance rack will be between 18% and 29%.
+
+###For size xlarge, we can be 95% confident that the quantity on the clearance rack will be between 8% and 16%. Our data got 12% of the sizes were xlarge.
+
+###For size small, we can be 95% confident that the quantity of smalls on the clearance rack will be between 22% and 33%. Our data got 28%
+
+###xsmall confidence range
+```{r}
+c.i_xs 
+c.i_xs2
+```
+
+
+###small confidence range
+```{r}
+c.i_s
+c.i_s2
+```
+
+###Medium confidence range
+```{r}
+c.i_m 
+c.i_m2
+```
+
+###Large Confidence range
+```{r}
+c.i_l
+c.i_l2
+lprop <- "Percentage of Large from data was 16%"
+lprop
+```
+###XLarge confidence range
+
+```{r}
+c.i_xl 
+c.i_xl2
+
+
+```
+
+
+
+### Discussion (10pts)
+
+Please clearly state your conclusion and the implication of the result.
+
+###The from the binned residuals and the pp_check it does seem like the model I chose is the correct one. The EDA results are also intersting in that there does seem to be a trend in the proportions between the sizes. It is possible that an "adjacent categories logit model" might have gotten better results but it is hard to know since the overall saple size was fairly small for each clothing size. The 95% confidence interval for all the sizes is within a decent range. For example, with size small, our data has the proportion for Small sizes at 28%. The confidence interval was +/- 6% points from that proportion. With more samples, this confidence interval would surely decrease and we could have a closer understanding of what the actual proportions are for size Small on the clearance rack.
+
+###A better understanding of what we could expect the proportions could be on the clearance rack couly help a store like Target predict what kind of monetary losses or gains they might expect each season as well as use those numbers to adjust their inventory or pursue the matter by adjusting their sizing to fit more of their customers. In other words, since there does seem to be a different in the quantity of sizes, Target may not be using their company sizing to reach most of their customers and may want to make adjustments to the measurements.
+
+
+### Limitations and future opportunity. (10pts)
+
+Please list concerns about your analysis.  Also, please state how you might go about fixing the problem in your future study.
+
+###My concern of the analysis is the low sample size that cannot represent the actual sampling distribution of the sizes as well as not using an adjacent categories logit model. Also, my data does not compare the clearance racks of other clothing retailers which would answer the question of whether or not this particular proportional difference in sizes found in my data is just a characteristic of Target stores or does is speak to the clothing industry as a whole.
+
+
+### Comments or questions
+If you have any comments or questions, please write them here.
+
